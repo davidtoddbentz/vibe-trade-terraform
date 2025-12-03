@@ -21,6 +21,9 @@ resource "google_project_service" "required_apis" {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "firestore.googleapis.com",
+    # Uncomment if using Cloud Armor rate limiting:
+    # "compute.googleapis.com",      # For load balancer
+    # "cloudarmor.googleapis.com",    # For Cloud Armor rate limiting
   ])
 
   project = var.project_id
@@ -163,6 +166,9 @@ resource "google_cloud_run_v2_service" "agent" {
         name  = "MCP_SERVER_URL"
         value = "${google_cloud_run_v2_service.mcp_server.uri}/mcp"
       }
+      # MCP_AUTH_TOKEN is optional - agent will use service account identity token
+      # when running in Cloud Run (automatic service-to-service auth)
+      # Can still be set explicitly if needed
       env {
         name  = "MCP_AUTH_TOKEN"
         value = var.mcp_auth_token
@@ -190,7 +196,7 @@ resource "google_cloud_run_v2_service" "agent" {
 
     scaling {
       min_instance_count = 0
-      max_instance_count = 10
+      max_instance_count = 3
     }
   }
 
@@ -207,6 +213,7 @@ resource "google_cloud_run_v2_service" "agent" {
 }
 
 # Make agent service publicly accessible
+# Rate limiting will be handled by Cloud Armor when enabled (see commented section below)
 resource "google_cloud_run_service_iam_member" "agent_public_access" {
   location = google_cloud_run_v2_service.agent.location
   service  = google_cloud_run_v2_service.agent.name
@@ -214,8 +221,154 @@ resource "google_cloud_run_service_iam_member" "agent_public_access" {
   member   = "allUsers"
 }
 
-# Make service publicly accessible (authentication handled by app-level middleware)
-# This allows the app to handle auth with static tokens instead of IAM
+# OPTIONAL: Cloud Armor rate limiting with load balancer
+# Uncomment this section to use infrastructure-level rate limiting
+# Requires: domain name, DNS setup, SSL certificate provisioning
+# See RATE_LIMITING.md for details
+#
+# This will:
+# - Allow authenticated users (with MCP_AUTH_TOKEN) - no rate limit
+# - Rate limit unauthenticated users to 15 requests/hour per IP
+#
+# resource "google_compute_security_policy" "agent_rate_limit" {
+#   name        = "vibe-trade-agent-rate-limit"
+#   description = "Rate limiting: 15 requests/hour per IP (unauthenticated), unlimited for authenticated"
+#
+#   # Rule 1: Allow authenticated users (no rate limit)
+#   # Checks for Authorization: Bearer <MCP_AUTH_TOKEN> header
+#   rule {
+#     action   = "allow"
+#     priority = "1000"
+#     match {
+#       expr {
+#         expression = "has(request.headers['authorization']) && request.headers['authorization'].startsWith('Bearer ') && request.headers['authorization'].replace('Bearer ', '') == '${var.mcp_auth_token}'"
+#       }
+#     }
+#     description = "Allow authenticated users - no rate limit"
+#   }
+#
+#   # Rule 2: Rate limit unauthenticated users
+#   rule {
+#     action   = "throttle"
+#     priority = "2000"
+#     match {
+#       versioned_expr = "SRC_IPS_V1"
+#       config {
+#         src_ip_ranges = ["*"]
+#       }
+#     }
+#     rate_limit_options {
+#       conform_action = "allow"
+#       exceed_action  = "deny(429)"
+#       enforce_on_key = "IP"
+#       rate_limit_threshold {
+#         count        = 15
+#         interval_sec = 3600
+#       }
+#     }
+#     description = "Rate limit: 15 requests per hour per IP (unauthenticated only)"
+#   }
+#
+#   # Default rule: allow all (fallback)
+#   rule {
+#     action   = "allow"
+#     priority = "2147483647"
+#     match {
+#       versioned_expr = "SRC_IPS_V1"
+#       config {
+#         src_ip_ranges = ["*"]
+#       }
+#     }
+#     description = "Default allow rule"
+#   }
+# }
+#
+# resource "google_compute_region_network_endpoint_group" "agent_neg" {
+#   name                  = "vibe-trade-agent-neg"
+#   network_endpoint_type = "SERVERLESS"
+#   region                = var.region
+#   cloud_run {
+#     service = google_cloud_run_v2_service.agent.name
+#   }
+# }
+#
+# resource "google_compute_backend_service" "agent_backend" {
+#   name                  = "vibe-trade-agent-backend"
+#   description           = "Backend service for agent with rate limiting"
+#   protocol              = "HTTP"
+#   port_name             = "http"
+#   timeout_sec           = 30
+#   enable_cdn            = false
+#   load_balancing_scheme = "EXTERNAL_MANAGED"
+#
+#   backend {
+#     group = google_compute_region_network_endpoint_group.agent_neg.id
+#   }
+#
+#   security_policy = google_compute_security_policy.agent_rate_limit.id
+#
+#   log_config {
+#     enable      = true
+#     sample_rate = 1.0
+#   }
+# }
+
+# # URL map for load balancer
+# resource "google_compute_url_map" "agent_url_map" {
+#   name            = "vibe-trade-agent-url-map"
+#   description     = "URL map for agent service"
+#   default_service = google_compute_backend_service.agent_backend.id
+# }
+
+# # HTTP(S) proxy for load balancer
+# resource "google_compute_target_https_proxy" "agent_https_proxy" {
+#   name             = "vibe-trade-agent-https-proxy"
+#   url_map          = google_compute_url_map.agent_url_map.id
+#   ssl_certificates = [google_compute_managed_ssl_certificate.agent_cert.id]
+# }
+
+# # Managed SSL certificate
+# resource "google_compute_managed_ssl_certificate" "agent_cert" {
+#   name = "vibe-trade-agent-ssl-cert"
+#
+#   managed {
+#     domains = [var.agent_domain] # e.g., "agent.vibe-trade.com"
+#   }
+# }
+
+# # Global forwarding rule (load balancer)
+# resource "google_compute_global_forwarding_rule" "agent_forwarding_rule" {
+#   name                  = "vibe-trade-agent-forwarding-rule"
+#   ip_protocol           = "TCP"
+#   load_balancing_scheme = "EXTERNAL_MANAGED"
+#   port_range            = "443"
+#   target                = google_compute_target_https_proxy.agent_https_proxy.id
+# }
+
+# # Make agent service accessible only to load balancer (not public)
+# # Remove public access since load balancer will handle it
+# # resource "google_cloud_run_service_iam_member" "agent_public_access" {
+# #   location = google_cloud_run_v2_service.agent.location
+# #   service  = google_cloud_run_v2_service.agent.name
+# #   role     = "roles/run.invoker"
+# #   member   = "allUsers"
+# # }
+
+# # Allow load balancer to invoke agent service
+# resource "google_cloud_run_service_iam_member" "agent_lb_access" {
+#   location = google_cloud_run_v2_service.agent.location
+#   service  = google_cloud_run_v2_service.agent.name
+#   role     = "roles/run.invoker"
+#   member   = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+# }
+
+# data "google_project" "project" {
+#   project_id = var.project_id
+# }
+
+# Make MCP service publicly accessible (authentication handled by app-level middleware)
+# TODO: After MVP, remove public access and make MCP private (only accessible by agent service)
+# Service-to-service auth will use identity tokens from service account credentials
 resource "google_cloud_run_service_iam_member" "public_access" {
   location = google_cloud_run_v2_service.mcp_server.location
   service  = google_cloud_run_v2_service.mcp_server.name

@@ -58,3 +58,9 @@ variable "max_iterations" {
   default     = "15"
 }
 
+variable "agent_domain" {
+  description = "Domain name for the agent service (optional, for Cloud Armor rate limiting with load balancer)"
+  type        = string
+  default     = ""
+}
+
