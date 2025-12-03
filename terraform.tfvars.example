@@ -13,3 +13,10 @@ firestore_location = "nam5"
 # If empty, authentication is disabled (not recommended for production)
 mcp_auth_token = ""
 
+# Agent configuration
+openai_api_key   = "sk-..."
+langsmith_api_key = "lsv2_..."
+openai_model     = "gpt-4o-mini"
+max_tokens       = "2000"
+max_iterations   = "15"
+
