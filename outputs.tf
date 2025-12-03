@@ -8,9 +8,14 @@ output "mcp_endpoint" {
   value       = "${google_cloud_run_v2_service.mcp_server.uri}/mcp"
 }
 
-output "artifact_registry_url" {
-  description = "Artifact Registry repository URL for pushing images"
-  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id}"
+output "artifact_registry_url_mcp" {
+  description = "Artifact Registry repository URL for MCP images"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo_mcp.repository_id}"
+}
+
+output "artifact_registry_url_agent" {
+  description = "Artifact Registry repository URL for Agent images"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo_agent.repository_id}"
 }
 
 output "service_name" {
@@ -41,5 +46,15 @@ output "firestore_location" {
 output "firestore_database_name" {
   description = "Firestore database name"
   value       = google_firestore_database.strategy.name
+}
+
+output "agent_service_url" {
+  description = "URL of the Agent Cloud Run service"
+  value       = google_cloud_run_v2_service.agent.uri
+}
+
+output "agent_service_name" {
+  description = "Agent Cloud Run service name"
+  value       = google_cloud_run_v2_service.agent.name
 }
 

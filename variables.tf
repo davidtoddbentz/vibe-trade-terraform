@@ -28,3 +28,33 @@ variable "mcp_auth_token" {
   sensitive   = true
 }
 
+variable "openai_api_key" {
+  description = "OpenAI API key for the agent"
+  type        = string
+  sensitive   = true
+}
+
+variable "langsmith_api_key" {
+  description = "LangSmith API key for the agent"
+  type        = string
+  sensitive   = true
+}
+
+variable "openai_model" {
+  description = "OpenAI model to use (e.g., gpt-4o-mini)"
+  type        = string
+  default     = "gpt-4o-mini"
+}
+
+variable "max_tokens" {
+  description = "Maximum tokens per response"
+  type        = string
+  default     = "2000"
+}
+
+variable "max_iterations" {
+  description = "Maximum agent iterations"
+  type        = string
+  default     = "15"
+}
+
