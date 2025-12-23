@@ -126,6 +126,12 @@ variable "firebase_app_id" {
   default     = ""
 }
 
+variable "langgraph_api_url" {
+  description = "LangGraph Agent API URL (NEXT_PUBLIC_LANGGRAPH_API_URL) - used at build time"
+  type        = string
+  default     = ""
+}
+
 variable "firebase_service_account_key" {
   description = "Firebase Service Account Key JSON (optional - uses Application Default Credentials on GCP if not set)"
   type        = string

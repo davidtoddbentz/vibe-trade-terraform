@@ -38,13 +38,16 @@ firebase_storage_bucket      = "your-project.appspot.com"  # Only if using Stora
 firebase_messaging_sender_id = "your-sender-id"            # Only if using FCM
 firebase_app_id              = "your-app-id"               # Auto-generated
 
+# LangGraph Agent API URL (optional - defaults to hardcoded URL if not set)
+langgraph_api_url = "https://vibe-trade-agent-kff5sbwvca-uc.a.run.app"
+
 # Firebase Admin SDK (optional - uses Application Default Credentials on Cloud Run if not set)
 # Only needed if you want explicit service account credentials
 # firebase_service_account_key = ""
 
 # Agent configuration
 openai_api_key   = "sk-..."
-langsmith_api_key = "lsv2_..."
+langsmith_api_key = "lsv2_..."  # Also used as NEXT_PUBLIC_LANGSMITH_API_KEY for UI build-time (LangGraph authentication)
 openai_model     = "gpt-4o-mini"
 max_tokens       = "2000"
 max_iterations   = "15"
