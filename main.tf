@@ -492,3 +492,101 @@ resource "google_cloud_run_service_iam_member" "public_access" {
   member   = "allUsers"
 }
 
+# Artifact Registry repository for Docker images - UI
+resource "google_artifact_registry_repository" "docker_repo_ui" {
+  location      = var.region
+  repository_id = "vibe-trade-ui"
+  description   = "Docker repository for Vibe Trade UI"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Service account for UI Cloud Run service
+resource "google_service_account" "ui_cloud_run_sa" {
+  account_id   = "vibe-trade-ui-runner"
+  display_name = "Vibe Trade UI Cloud Run Service Account"
+  description  = "Service account for running the UI on Cloud Run"
+}
+
+# Cloud Run service for UI
+resource "google_cloud_run_v2_service" "ui" {
+  name     = "vibe-trade-ui"
+  location = var.region
+
+  template {
+    service_account = google_service_account.ui_cloud_run_sa.email
+
+    containers {
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo_ui.repository_id}/vibe-trade-ui:latest"
+
+      ports {
+        container_port = 8080
+      }
+
+      # Note: PORT is automatically set by Cloud Run - don't set it manually
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      # Firebase Admin SDK uses Application Default Credentials on GCP
+      # No need to set FIREBASE_SERVICE_ACCOUNT_KEY when running on Cloud Run
+      # Optional: Set FIREBASE_SERVICE_ACCOUNT_KEY if you need explicit service account
+      # env {
+      #   name  = "FIREBASE_SERVICE_ACCOUNT_KEY"
+      #   value = var.firebase_service_account_key
+      # }
+      env {
+        name  = "SNAPTRADE_CLIENT_ID"
+        value = var.snaptrade_client_id
+      }
+      env {
+        name  = "SNAPTRADE_CONSUMER_KEY"
+        value = var.snaptrade_consumer_key
+      }
+      # Optional environment variables - uncomment if needed
+      # env {
+      #   name  = "NEXT_PUBLIC_FINNHUB_API_KEY"
+      #   value = var.finnhub_api_key
+      # }
+      # env {
+      #   name  = "NEXT_PUBLIC_LOGODEV_TOKEN"
+      #   value = var.logodev_token
+      # }
+      # Note: NEXT_PUBLIC_* variables must be set at BUILD TIME (as Docker build args)
+      # They are baked into the JavaScript bundle during `next build`
+      # See Makefile for how to pass these during docker build
+
+      resources {
+        limits = {
+          cpu    = "2"
+          memory = "2Gi"
+        }
+      }
+    }
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 10
+    }
+  }
+
+  traffic {
+    percent = 100
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_artifact_registry_repository.docker_repo_ui,
+  ]
+}
+
+# Make UI service publicly accessible
+resource "google_cloud_run_service_iam_member" "ui_public_access" {
+  location = google_cloud_run_v2_service.ui.location
+  service  = google_cloud_run_v2_service.ui.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+

@@ -65,8 +65,77 @@ variable "agent_domain" {
 }
 
 variable "nextauth_secret" {
-  description = "NextAuth JWT secret (must match UI's NEXTAUTH_SECRET)"
+  description = "NextAuth JWT secret (must match API's NEXTAUTH_SECRET if API still uses NextAuth)"
   type        = string
   sensitive   = true
+}
+
+variable "snaptrade_client_id" {
+  description = "SnapTrade client ID"
+  type        = string
+  sensitive   = true
+  default     = ""  # Optional - only needed if using SnapTrade features
+}
+
+variable "snaptrade_consumer_key" {
+  description = "SnapTrade consumer key"
+  type        = string
+  sensitive   = true
+  default     = ""  # Optional - only needed if using SnapTrade features
+}
+
+# Firebase configuration variables
+# Note: These are BUILD-TIME variables (NEXT_PUBLIC_*) that get baked into the JavaScript bundle
+# They're stored here for convenience/management, but are passed as Docker build args, not runtime env vars
+# See vibes/quant/Makefile for how to use these during docker build
+
+variable "firebase_api_key" {
+  description = "Firebase API key (NEXT_PUBLIC_FIREBASE_API_KEY) - used at build time"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "firebase_auth_domain" {
+  description = "Firebase Auth domain (NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) - used at build time"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_project_id" {
+  description = "Firebase Project ID (NEXT_PUBLIC_FIREBASE_PROJECT_ID) - used at build time"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_storage_bucket" {
+  description = "Firebase Storage bucket (NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) - optional, used at build time"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_messaging_sender_id" {
+  description = "Firebase Messaging Sender ID (NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID) - optional, used at build time"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_app_id" {
+  description = "Firebase App ID (NEXT_PUBLIC_FIREBASE_APP_ID) - optional, used at build time"
+  type        = string
+  default     = ""
+}
+
+variable "langgraph_api_url" {
+  description = "LangGraph Agent API URL (NEXT_PUBLIC_LANGGRAPH_API_URL) - used at build time"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_service_account_key" {
+  description = "Firebase Service Account Key JSON (optional - uses Application Default Credentials on GCP if not set)"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
