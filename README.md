@@ -34,10 +34,17 @@ gcloud config set project vibe-trade-475704
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars`** and set your authentication token:
+2. **Edit `terraform.tfvars`** and set required variables:
    ```hcl
    # Generate a secure token: openssl rand -hex 32
    mcp_auth_token = "your-secure-random-token-here"
+   
+   # NextAuth secret (must match UI's NEXTAUTH_SECRET)
+   nextauth_secret = "your-nextauth-secret-here"
+   
+   # API keys
+   openai_api_key = "your-openai-key"
+   langsmith_api_key = "your-langsmith-key"
    ```
 
 3. **Initialize Terraform:**
@@ -59,9 +66,12 @@ gcloud config set project vibe-trade-475704
 
 ## What Gets Created
 
-- **Artifact Registry**: Docker repository for container images
-- **Service Account**: For the Cloud Run service to run as
-- **Cloud Run Service**: The MCP server (scales to 0, max 10 instances)
+- **Artifact Registry**: Docker repositories for MCP, Agent, and API container images
+- **Service Accounts**: For each Cloud Run service (MCP, Agent, API)
+- **Cloud Run Services**:
+  - MCP server (scales to 0, max 10 instances)
+  - Agent server (scales to 0, max 3 instances)
+  - API server (scales to 0, max 10 instances)
 - **Firestore Database**: Native mode database for storing strategy data
 - **IAM Bindings**: Access control for Firestore
 
@@ -133,9 +143,11 @@ To change the authentication token:
 # Get all outputs
 terraform output
 
-# Get specific output
+# Get specific outputs
 terraform output mcp_endpoint
 terraform output service_url
+terraform output api_service_url
+terraform output agent_service_url
 ```
 
 ## Destroying

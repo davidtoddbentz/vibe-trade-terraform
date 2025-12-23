@@ -52,6 +52,26 @@ resource "google_artifact_registry_repository" "docker_repo_agent" {
   depends_on = [google_project_service.required_apis]
 }
 
+# Artifact Registry repository for Docker images - API
+resource "google_artifact_registry_repository" "docker_repo_api" {
+  location      = var.region
+  repository_id = "vibe-trade-api"
+  description   = "Docker repository for Vibe Trade API"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Artifact Registry repository for Python packages
+resource "google_artifact_registry_repository" "python_repo" {
+  location      = var.region
+  repository_id = "vibe-trade-python"
+  description   = "Python package repository for shared libraries"
+  format        = "PYTHON"
+
+  depends_on = [google_project_service.required_apis]
+}
+
 # Service account for Cloud Run service
 resource "google_service_account" "cloud_run_sa" {
   account_id   = "vibe-trade-mcp-runner"
@@ -137,6 +157,35 @@ resource "google_service_account" "agent_cloud_run_sa" {
   account_id   = "vibe-trade-agent-runner"
   display_name = "Vibe Trade Agent Cloud Run Service Account"
   description  = "Service account for running the agent on Cloud Run"
+}
+
+# Service account for API Cloud Run service
+resource "google_service_account" "api_cloud_run_sa" {
+  account_id   = "vibe-trade-api-runner"
+  display_name = "Vibe Trade API Cloud Run Service Account"
+  description  = "Service account for running the API on Cloud Run"
+}
+
+# Grant Firestore access to API Cloud Run service account
+resource "google_project_iam_member" "api_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.api_cloud_run_sa.email}"
+
+  depends_on = [google_service_account.api_cloud_run_sa]
+}
+
+# Grant Artifact Registry read access to API Cloud Run service account
+resource "google_artifact_registry_repository_iam_member" "api_python_reader" {
+  location   = var.region
+  repository = google_artifact_registry_repository.python_repo.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.api_cloud_run_sa.email}"
+
+  depends_on = [
+    google_service_account.api_cloud_run_sa,
+    google_artifact_registry_repository.python_repo,
+  ]
 }
 
 # Cloud Run service for Agent
@@ -365,6 +414,73 @@ resource "google_cloud_run_service_iam_member" "agent_public_access" {
 # data "google_project" "project" {
 #   project_id = var.project_id
 # }
+
+# Cloud Run service for API
+resource "google_cloud_run_v2_service" "api" {
+  name     = "vibe-trade-api"
+  location = var.region
+
+  template {
+    service_account = google_service_account.api_cloud_run_sa.email
+
+    containers {
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo_api.repository_id}/vibe-trade-api:latest"
+
+      ports {
+        container_port = 8080
+      }
+
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "FIRESTORE_DATABASE"
+        value = google_firestore_database.strategy.name
+      }
+      env {
+        name  = "NEXTAUTH_SECRET"
+        value = var.nextauth_secret
+      }
+      env {
+        name  = "CORS_ORIGINS"
+        value = "*" # TODO: Restrict to UI domain in production
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+    }
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 10
+    }
+  }
+
+  traffic {
+    percent = 100
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_artifact_registry_repository.docker_repo_api,
+    google_firestore_database.strategy,
+    google_project_iam_member.api_firestore_user,
+  ]
+}
+
+# Make API service publicly accessible (authentication handled by JWT middleware)
+resource "google_cloud_run_service_iam_member" "api_public_access" {
+  location = google_cloud_run_v2_service.api.location
+  service  = google_cloud_run_v2_service.api.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
 
 # Make MCP service publicly accessible (authentication handled by app-level middleware)
 # TODO: After MVP, remove public access and make MCP private (only accessible by agent service)

@@ -13,6 +13,11 @@ firestore_location = "nam5"
 # If empty, authentication is disabled (not recommended for production)
 mcp_auth_token = ""
 
+# API configuration
+# NextAuth JWT secret (must match UI's NEXTAUTH_SECRET)
+# Generate a secure random secret: openssl rand -base64 32
+nextauth_secret = ""
+
 # Agent configuration
 openai_api_key   = "sk-..."
 langsmith_api_key = "lsv2_..."

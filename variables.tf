@@ -64,3 +64,9 @@ variable "agent_domain" {
   default     = ""
 }
 
+variable "nextauth_secret" {
+  description = "NextAuth JWT secret (must match UI's NEXTAUTH_SECRET)"
+  type        = string
+  sensitive   = true
+}
+
