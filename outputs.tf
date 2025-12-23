@@ -78,3 +78,35 @@ output "python_package_repo_url" {
   value       = "${var.region}-python.pkg.dev/${var.project_id}/${google_artifact_registry_repository.python_repo.repository_id}/simple/"
 }
 
+output "ui_service_url" {
+  description = "URL of the UI Cloud Run service"
+  value       = google_cloud_run_v2_service.ui.uri
+}
+
+output "ui_service_name" {
+  description = "UI Cloud Run service name"
+  value       = google_cloud_run_v2_service.ui.name
+}
+
+output "artifact_registry_url_ui" {
+  description = "Artifact Registry repository URL for UI images"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo_ui.repository_id}"
+}
+
+# Firebase configuration outputs (for reference/build scripts)
+output "firebase_api_key" {
+  description = "Firebase API key (for build-time use)"
+  value       = var.firebase_api_key
+  sensitive   = true
+}
+
+output "firebase_auth_domain" {
+  description = "Firebase Auth domain (for build-time use)"
+  value       = var.firebase_auth_domain
+}
+
+output "firebase_project_id" {
+  description = "Firebase Project ID (for build-time use)"
+  value       = var.firebase_project_id
+}
+
